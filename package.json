@@ -1,0 +1,26 @@
+{
+  "name": "chatblitz",
+  "version": "1.0.0",
+  "description": "",
+  "homepage": "https://github.com/Anushka-coder1/ChatBlitz#readme",
+  "bugs": {
+    "url": "https://github.com/Anushka-coder1/ChatBlitz/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Anushka-coder1/ChatBlitz.git"
+  },
+  "license": "ISC",
+  "author": "Anushka Verma",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "nodemon backend/server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "nodemon": "^3.1.13"
+  }
+}
