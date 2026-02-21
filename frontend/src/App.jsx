@@ -1,16 +1,16 @@
-import { Button, HStack } from "@chakra-ui/react"
 import './App.css'
+import ChatPage from './components/ChatPage'
+import Homepages from './components/HomePages.jsx'
+import {Routes, Route } from 'react-router-dom'
 
 function App() {
-
   return (
-    <>
-      Hello
-       <HStack>
-      <Button>Click me</Button>
-      <Button>Click me</Button>
-    </HStack>
-    </>
+    <div className='App'>
+      <Routes>
+        <Route path="/" element={<Homepages />}/>
+        <Route path="/chats" element={<ChatPage/>}/>
+      </Routes>
+    </div>
   )
 }
 
