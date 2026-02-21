@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react'
 const ChatPage = () => {
   const [ chats, setChats ] = useState([])
 
-  const fetchChats = async () => {
+  useEffect( () => {
+    const fetchChats = async () => {
     try {
       const { data } = await axios.get('/api/chat')
       setChats(data)
@@ -13,7 +14,6 @@ const ChatPage = () => {
     }
   }
 
-  useEffect(() => {
     fetchChats()
   }, [])
 
