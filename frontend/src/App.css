@@ -1,0 +1,16 @@
+*{
+.work-sans-regular {
+  font-family: "Work Sans", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 300;
+  font-style: normal;
+}
+}
+
+.App{
+  min-height: 100vh;
+  display:flex;
+  background-image: url("./background.png");
+  background-size: cover;
+  background-position: center;
+}
