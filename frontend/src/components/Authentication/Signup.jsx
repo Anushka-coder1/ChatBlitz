@@ -1,16 +1,8 @@
-import { VStack, Image } from '@chakra-ui/react'
+import { VStack, Button, Field, Fieldset, Input, Image } from '@chakra-ui/react'
 import React, { useState, useEffect } from 'react'
-import {
-  Button,
-  Field,
-  Fieldset,
-  Input,
-  FileUpload,
-  Float,
-} from '@chakra-ui/react'
-import { HiUpload } from 'react-icons/hi'
-import { LuFileImage, LuX } from 'react-icons/lu'
 import { PasswordInput } from '@/components/ui/password-input'
+import { HiUpload } from 'react-icons/hi'
+import { FileUpload } from '@chakra-ui/react'
 
 const Signup = () => {
   const [name, setName] = useState('')
@@ -35,84 +27,102 @@ const Signup = () => {
   const handleSubmit = (e) => {
     e.preventDefault()
 
+    if (!name || !email || !password || !confirmpassword) {
+      alert('Please fill all fields')
+      return
+    }
+
     if (password !== confirmpassword) {
       alert('Passwords do not match')
       return
     }
 
-    console.log({
-      name,
-      email,
-      password,
-      pic,
-    })
+    console.log({ name, email, password, pic })
   }
 
   return (
-    <VStack spaceY="5px">
-      <Fieldset.Root size="lg" maxW="md">
-        <Fieldset.Content>
-          <Field.Root id="first-name" required>
-            <Field.Label>Name</Field.Label>
-            <Input
-              value={name}
-              placeholder="Enter Name"
-              onChange={(e) => setName(e.target.value)}
-            />
-          </Field.Root>
+    <form onSubmit={handleSubmit}>
+      <VStack spacing="5px">
+        <Fieldset.Root size="lg" maxW="md">
+          <Fieldset.Content>
+            <Field.Root required>
+              <Field.Label>Name</Field.Label>
+              <Input
+                value={name}
+                placeholder="Enter Name"
+                onChange={(e) => setName(e.target.value)}
+              />
+            </Field.Root>
 
-          <Field.Root required>
-            <Field.Label>Email address</Field.Label>
-            <Input
-              value={email}
-              type="email"
-              placeholder="abc@gmail.com"
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </Field.Root>
+            <Field.Root required>
+              <Field.Label>Email address</Field.Label>
+              <Input
+                value={email}
+                type="email"
+                placeholder="abc@gmail.com"
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </Field.Root>
 
-          <Field.Root required>
-            <Field.Label>Password</Field.Label>
-            <PasswordInput
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </Field.Root>
+            <Field.Root required>
+              <Field.Label>Password</Field.Label>
+              <PasswordInput
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </Field.Root>
 
-          <Field.Root required>
-            <Field.Label>Confirm Password</Field.Label>
-            <PasswordInput
-              value={confirmpassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-            />
-          </Field.Root>
+            <Field.Root required>
+              <Field.Label>Confirm Password</Field.Label>
+              <PasswordInput
+                value={confirmpassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            </Field.Root>
 
-          <FileUpload.Root
-            accept="image/*"
-            maxFiles={1}
-            onValueChange={(details) => {
-              console.log(details.acceptedFiles)
-            }}
-          >
-            <FileUpload.HiddenInput />
-            <FileUpload.Trigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                color="blue.500"
-              >
-                <HiUpload /> Upload file
-              </Button>
-            </FileUpload.Trigger>
-            <FileUpload.List />
-          </FileUpload.Root>
-        </Fieldset.Content>
+            {/* File Upload */}
+            <FileUpload.Root
+              accept="image/*"
+              maxFiles={1}
+              onValueChange={(details) => {
+                const file = details.acceptedFiles[0]
+                if (file) setPic(file)
+              }}
+            >
+              <FileUpload.HiddenInput />
 
-        <Button type="submit" mt={8} fontSize="2xl">
-          Submit
-        </Button>
-      </Fieldset.Root>
-    </VStack>
+              <FileUpload.Trigger asChild>
+                <Button variant="outline" size="sm">
+                  <HiUpload /> Upload Profile Picture
+                </Button>
+              </FileUpload.Trigger>
+
+              <FileUpload.List />
+            </FileUpload.Root>
+
+            {/* Preview Image */}
+            {preview && (
+              <Image
+                src={preview}
+                alt="Preview"
+                boxSize="100px"
+                borderRadius="full"
+              />
+            )}
+
+            <Button
+              type="submit"
+              mt={6}
+              bg ="blue.400"
+              width="100%"
+              fontSize="lg"
+            >
+              Sign Up
+            </Button>
+          </Fieldset.Content>
+        </Fieldset.Root>
+      </VStack>
+    </form>
   )
 }
 
