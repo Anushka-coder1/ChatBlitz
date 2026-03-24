@@ -8,6 +8,8 @@ import  chats  from "./data/data.js";
 import connectDB from "./config/db.js";
 import userRoutes from "./routes/userRoutes.js"
 import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
+import cookieParser from "cookie-parser";
+import cors from "cors";
 
 app.use(express.json());
 
@@ -29,8 +31,9 @@ app.use('/api/user',userRoutes)
 app.use(notFound)
 app.use(errorHandler)
 
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 8000;
 
+//starting server and conecting to DB
 const startServer = async () => {
   try {
     await connectDB();

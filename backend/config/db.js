@@ -8,13 +8,11 @@ const connectDB = async () => {
   }
 
   try {
-    await mongoose.connect(mongoUri, {
-      serverSelectionTimeoutMS: 10000,
-    });
+    await mongoose.connect(mongoUri);
     console.log("MongoDB connected");
   } catch (error) {
-    const message = error?.message || "Unknown MongoDB connection error";
-    throw new Error(`MongoDB connection failed: ${message}`);
+    throw new Error('MongoDB connection failed: ' , error.message);
+    process.exit(1);
   }
 };
 
