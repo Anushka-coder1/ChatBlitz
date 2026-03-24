@@ -92,23 +92,13 @@ const Signup = () => {
               <FileUpload.HiddenInput />
 
               <FileUpload.Trigger asChild>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" color="black">
                   <HiUpload /> Upload Profile Picture
                 </Button>
               </FileUpload.Trigger>
 
               <FileUpload.List />
             </FileUpload.Root>
-
-            {/* Preview Image */}
-            {preview && (
-              <Image
-                src={preview}
-                alt="Preview"
-                boxSize="100px"
-                borderRadius="full"
-              />
-            )}
 
             <Button
               type="submit"
