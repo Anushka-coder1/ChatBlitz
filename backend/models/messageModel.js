@@ -1,25 +1,51 @@
 import mongoose from 'mongoose'
 
-const messageModel = new mongoose.Schema(
+const messageSchema = new mongoose.Schema(
   {
-    sender : {
+    conversation: {
       type: mongoose.Schema.Types.ObjectId,
-      ref:"User"
+      ref: 'Conversation',
+      required: true,
     },
-    content:{
-      type:String,
-      trim:true
-    },
-    chat:{
+    sender: {
       type: mongoose.Schema.Types.ObjectId,
-      ref:"chat"
+      ref: "User",
+      required: true,
+    },
+    receiver: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    content: {
+      type: String,
+    },
+    imageOrVideoUrl: {
+      type: String,
+    },
+    contentType: {
+      type: String,
+      enum: ['image', 'video', 'text'],
+    },
+    reaction: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        emoji:String,
+      }
+    ],
+    messageStatus:{
+      type: String,
+      default:true
     }
   },
   {
-    timestamps:true
+    timestamps: true
   }
 )
 
-const Message = mongoose.model("Message",messageModel)
+const Message = mongoose.model("Message", messageSchema)
 
 export default Message;

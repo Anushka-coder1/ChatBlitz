@@ -1,43 +1,60 @@
 import mongoose from 'mongoose'
-import bcrypt from "bcryptjs"
 
 const userSchema = new mongoose.Schema(
   {
-    name:{
-      type:String,
-      required:true
+    Username: {
+      type: String,
     },
-    email:{
-      type:String,
-      unique : true,
-      required:true
+    phoneNumber: {
+      type: String,
+      unique: true,
+      sparse: true,//check uniquness only when value is entered
     },
-    password:{
-      type:String,
-      required:true
+    phoneSuffix: {
+      type: String,
+      unique: false,
     },
-    pic:{
-      type:String,
-      default:"https://icon-library.com/images/anonymous-avatar-icon/anonymous-avatar-icon-25.jpg"
+    email: {
+      type: String,
+      lowercase: true,
+      match: [/.+\@.+\..+/, 'Email format is invalid.'],
+      unique: true,
+      sparse: true,//check uniquness only when value is entered
     },
+    emailOtp: {
+      type: String,
+    },
+    emailOtpExpiry: {
+      type: Date,
+    },
+    profilePicture: {
+      type: String,
+      default: "https://icon-library.com/images/anonymous-avatar-icon/anonymous-avatar-icon-25.jpg"
+    },
+    about: {
+      type: String,
+    },
+    lastSeen: {
+      type: Date
+    },
+    isOnline: {
+      type: Boolean,
+      default: false,
+    },
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    agreed : {
+      type: Boolean,
+      default: false,
+    }
   },
   {
-    timestamps:true
+    timestamps: true
   }
 )
 
-userSchema.methods.matchPassword = async function (enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password)
-}
-
-userSchema.pre('save',async function (next) {
-  if(!this.isModified("password")){
-    next();
-  }
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password , salt)
-})
-
-const User = mongoose.model("User",userSchema)
+const User = mongoose.model("User", userSchema)
 
 export default User;
