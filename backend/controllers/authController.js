@@ -17,7 +17,7 @@ const sendOTP = async (req, res) => {
       user.emailOtp = otp;
       user.emailOtpExpiry = expiry;
       await user.save();
-      await send
+      await sendEmailOtp()
       return response(res , 200 , 'otp send to your email' , {email})
     }
     if (!phoneNumber || !phoneSuffix){
