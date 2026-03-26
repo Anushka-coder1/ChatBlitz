@@ -1,11 +1,34 @@
-import { Twilio } from "twilio";
+import twilio from "twilio";
 
-//Twilio credentials from env
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const serviceSid = process.env.TWILIO_SERVICE_SID;
+const getTwilioConfig = () => {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim();
+  const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
+  const serviceSid = process.env.TWILIO_SERVICE_SID?.trim();
 
-const client = twilio(accountSid, authToken)
+  return { accountSid, authToken, serviceSid };
+}
+
+const getMissingTwilioConfig = () => {
+  const { accountSid, authToken, serviceSid } = getTwilioConfig();
+  const missingConfig = [];
+
+  if (!accountSid) {
+    missingConfig.push("TWILIO_ACCOUNT_SID");
+  }
+  if (!authToken) {
+    missingConfig.push("TWILIO_AUTH_TOKEN");
+  }
+  if (!serviceSid) {
+    missingConfig.push("TWILIO_SERVICE_SID");
+  }
+
+  return missingConfig;
+}
+
+const getTwilioClient = () => {
+  const { accountSid, authToken } = getTwilioConfig();
+  return twilio(accountSid, authToken);
+}
 
 //send otp to phone number
 const sendOtpToPhoneNumber = async (phoneNumber) => {
@@ -14,15 +37,23 @@ const sendOtpToPhoneNumber = async (phoneNumber) => {
     if (!phoneNumber) {
       throw new Error("phone number is required");
     }
+
+    const missingConfig = getMissingTwilioConfig();
+    if (missingConfig.length) {
+      throw new Error(`Twilio is not configured. Missing: ${missingConfig.join(", ")}`);
+    }
+
+    const { serviceSid } = getTwilioConfig();
+    const client = getTwilioClient();
     const response = await client.verify.v2.services(serviceSid).verifications.create({
       to: phoneNumber,
-      channel: 'sms'
+      channel: "sms"
     })
-    console.log('this is my otp response', response)
+    console.log("this is my otp response", response)
     return response;
   } catch (error) {
     console.error(error);
-    throw new Error("Failed to send otp")
+    throw new Error(error.message || "Failed to send otp")
   }
 }
 
@@ -30,16 +61,24 @@ const verifyOtp = async (phoneNumber, otp) => {
   try {
     console.log("sending otp to this phone number", phoneNumber)
     console.log("otp is ", otp)
-    const response = await client.verify.v2.services(serviceSid).verificationsChecks.create({
+
+    const missingConfig = getMissingTwilioConfig();
+    if (missingConfig.length) {
+      throw new Error(`Twilio is not configured. Missing: ${missingConfig.join(", ")}`);
+    }
+
+    const { serviceSid } = getTwilioConfig();
+    const client = getTwilioClient();
+    const response = await client.verify.v2.services(serviceSid).verificationChecks.create({
       to: phoneNumber,
       code: otp
     })
-    console.log('this is my otp response', response)
+    console.log("this is my otp response", response)
     return response;
   } catch (error) {
     console.error(error);
-    throw new Error("otp verification failed")
+    throw new Error(error.message || "otp verification failed")
   }
 }
 
-export {sendOtpToPhoneNumber , verifyOtp}
+export { sendOtpToPhoneNumber, verifyOtp }

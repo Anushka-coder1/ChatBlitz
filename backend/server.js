@@ -7,12 +7,19 @@ const app = express();
 import  chats  from "./data/data.js";
 import connectDB from "./config/db.js";
 import userRoutes from "./routes/userRoutes.js"
+import authRoutes from "./routes/authRoutes.js"
 import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
 import cookieParser from "cookie-parser";
 import cors from "cors";
+import bodyParser from "body-parser";
 
-app.use(express.json());
+//middleware
+app.use(express.json()); //parse body data
+app.use(cookieParser()) //parse token on every request
+app.use(bodyParser.urlencoded({extended: true}))
 
+//routes
+app.use('/api/auth',authRoutes)
 app.get('/',(req,res)=>{
   res.send("API is running")
 })
@@ -31,7 +38,7 @@ app.use('/api/user',userRoutes)
 app.use(notFound)
 app.use(errorHandler)
 
-const port = process.env.PORT || 8000;
+const port = process.env.PORT || 5000;
 
 //starting server and conecting to DB
 const startServer = async () => {
