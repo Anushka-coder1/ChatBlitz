@@ -32,7 +32,9 @@
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^7.1.0",
     "mongoose": "^9.2.1",
-    "nodemon": "^3.1.13"
+    "nodemailer": "^8.0.4",
+    "nodemon": "^3.1.13",
+    "twilio": "^5.13.1"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
