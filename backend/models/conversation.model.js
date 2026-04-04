@@ -11,7 +11,7 @@ const conversationSchema = new mongoose.Schema({
   },
   unreadCount : {
     type:Number , 
-    defauly :0
+    default :0
   },
 },{Timestamp:true})
 

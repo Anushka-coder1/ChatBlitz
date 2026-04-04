@@ -4,7 +4,6 @@ dotenv.config();
 import express from "express";
 const app = express();
 
-import  chats  from "./data/data.js";
 import connectDB from "./config/db.js";
 import userRoutes from "./routes/userRoutes.js"
 import authRoutes from "./routes/authRoutes.js"
