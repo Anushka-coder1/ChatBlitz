@@ -163,7 +163,7 @@ const markAsRead = async (req, res) => {
   }
 }
 
-const deleteMessages = async ( req ,res) => {
+const deleteMessage = async ( req ,res) => {
   const {messageId} = req.params
   const userId = req.user.userId
   try {
@@ -184,4 +184,4 @@ const deleteMessages = async ( req ,res) => {
   }
 }
 
-export { sendMessage, getConversation, getMessages, markAsRead ,deleteMessages }
+export { sendMessage, getConversation, getMessages, markAsRead ,deleteMessage }

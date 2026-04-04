@@ -5,9 +5,11 @@ import express from "express";
 const app = express();
 
 import connectDB from "./config/db.js";
-import userRoutes from "./routes/userRoutes.js"
-import authRoutes from "./routes/authRoutes.js"
-import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
+import userRoutes from "./routes/user.routes.js"
+import authRoutes from "./routes/auth.routes.js"
+import chatRoutes from "./routes/chat.routes.js"
+
+import { errorHandler, notFound } from "./middleware/error.middleware.js";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import bodyParser from "body-parser";
@@ -19,6 +21,7 @@ app.use(bodyParser.urlencoded({extended: true}))
 
 //routes
 app.use('/api/auth',authRoutes)
+app.use('/api/chat',chatRoutes)
 app.get('/',(req,res)=>{
   res.send("API is running")
 })
