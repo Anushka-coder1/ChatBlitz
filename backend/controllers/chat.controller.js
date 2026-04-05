@@ -1,11 +1,12 @@
-import { uploadFileToCloudinary } from "../config/cloudinary"
-import Conversation from "../models/conversation.model"
-import Message from "../models/message.model"
-import response from "../utils/responseHandler"
+import { cloudinary, uploadFileToCloudinary } from "../config/cloudinary.js"
+import Conversation from "../models/conversation.model.js"
+import Message from "../models/message.model.js"
+import response from "../utils/responseHandler.js"
 
 const sendMessage = async (req, res) => {
   try {
-    const { senderId, receiverId, content, messageStatus } = req.body
+    const { receiverId, content, messageStatus } = req.body
+    const senderId = req.user.userId
     const file = req.file
     const participants = [senderId, receiverId].sort()
 
@@ -34,10 +35,10 @@ const sendMessage = async (req, res) => {
 
       imageOrVideoUrl = uploadFile?.secure_url
 
-      if (file.mimetype.startWith('image')) {
+      if (file.mimetype.startsWith('image')) {
         contentType = "image"
       }
-      else if (file.mimetype.startWith('video')) {
+      else if (file.mimetype.startsWith('video')) {
         contentType = "video"
       }
       else {
@@ -65,15 +66,16 @@ const sendMessage = async (req, res) => {
     if (message?.content) {
       conversation.lastMessage = message?.id
     }
-    conversation.unreadCount += 1
+    conversation.unreadCount = (conversation.unreadCount || 0) + 1
     await conversation.save()
 
-    const populatedMessage = await Message.findOne(message?.id)
+    const populatedMessage = await Message.findById(message?._id)
       .populate("sender", "username profilePicture")
       .populate("receiver", "username profilePicture")
 
     return response(res, 201, "message send Successfully", populatedMessage)
   } catch (error) {
+    console.error(error)
     return response(res, 500, 'Internal server Error')
   }
 }
@@ -108,8 +110,12 @@ const getMessages = async (req, res) => {
       return response(res, 404, "Conversation not found")
     }
 
-    if (!conversation.participants.includes(userId)) {
-      return response(res, 403, "Not authorized to view this conversation")
+    const isParticipant = conversation.participants.some(
+      (participant) => participant.toString() === userId
+    );
+
+    if (!isParticipant) {
+      return response(res, 403, "Not authorized to view this conversation");
     }
 
     const messages = await Message
@@ -140,48 +146,51 @@ const getMessages = async (req, res) => {
 }
 
 const markAsRead = async (req, res) => {
-  const messageIds = req.body
+  const {messageIds} = req.body
   const userId = req.user.userId
+
   try {
-    //get relavent message to determine senders
-    let messages = await Messages.find({
+    // get relevant messages
+    let messages = await Message.find({
       _id: { $in: messageIds },
       receiver: userId,
     })
 
-    await messages.updateMany(
+    // update messages
+    await Message.updateMany(
       {
-        _id: { $in: messageIds } ,
+        _id: { $in: messageIds },
         receiver: userId,
       },
-      {$set : {messageStatus : "read"}}
+      { $set: { messageStatus: "read" } }
     )
 
-    return response (res , 200 , "message mark as read" , messages)
+    return response(res, 200, "message mark as read", messages)
   } catch (error) {
+    console.error(error)
     return response(res, 500, 'Internal server Error')
   }
 }
 
-const deleteMessage = async ( req ,res) => {
-  const {messageId} = req.params
+const deleteMessage = async (req, res) => {
+  const { messageId } = req.params
   const userId = req.user.userId
   try {
-    const message = await Messages.findById(messageId)
-    if(!message){
-      return response(res , 404 , "message not found")
+    const message = await Message.findById(messageId)
+    if (!message) {
+      return response(res, 404, "message not found")
     }
 
-    if(message.sender.toString() != userId){
-      return response(res , 403 , "Not authorized to delete this message")
+    if (message.sender.toString() !== userId) {
+      return response(res, 403, "Not authorized to delete this message")
     }
 
     await message.deleteOne()
 
-    return response(res , 200 , "message deleted successfully" )
+    return response(res, 200, "message deleted successfully")
   } catch (error) {
     return response(res, 500, 'Internal server Error')
   }
 }
 
-export { sendMessage, getConversation, getMessages, markAsRead ,deleteMessage }
+export { sendMessage, getConversation, getMessages, markAsRead, deleteMessage }
