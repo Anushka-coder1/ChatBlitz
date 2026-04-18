@@ -6,7 +6,7 @@ import { multerMiddleware } from "../config/cloudinary.js";
 
 const router = express.Router();
 
-router.post("/send-message",authMiddleware , sendMessage);
+router.post("/send-message",authMiddleware , multerMiddleware , sendMessage);
 router.get("/conversation",authMiddleware, getConversation)
 router.get("/conversation/:conversationId/messages",authMiddleware, getMessages)
 
