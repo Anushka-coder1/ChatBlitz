@@ -1,5 +1,4 @@
 import express from "express";
-import { authUser, registerUser } from "../controllers/user.controller.js";
 import { sendMessage, getConversation, getMessages, markAsRead ,deleteMessage } from "../controllers/chat.controller.js";
 import authMiddleware from "../middleware/auth.middleware.js";
 import { multerMiddleware } from "../config/cloudinary.js";

@@ -1,13 +1,10 @@
 import express from "express";
-import { authUser, registerUser } from "../controllers/user.controller.js";
 import { checkAuthenticated, getAllUsers, logout, sendOTP, updateProfile, verifyOtp } from "../controllers/auth.controller.js";
 import authMiddleware from "../middleware/auth.middleware.js";
 import { multerMiddleware } from "../config/cloudinary.js";
 
 const router = express.Router();
 
-// router.route("/").post(registerUser);
-// router.post("/login",authUser);
 router.post("/send-otp",sendOTP);
 router.post("/verify-otp",verifyOtp);
 router.get("/logout",logout)

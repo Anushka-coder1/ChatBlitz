@@ -5,7 +5,6 @@ import express from "express";
 const app = express();
 
 import connectDB from "./config/db.js";
-import userRoutes from "./routes/user.routes.js"
 import authRoutes from "./routes/auth.routes.js"
 import chatRoutes from "./routes/chat.routes.js"
 
@@ -17,9 +16,25 @@ import http from "http"
 import { initializeSocket } from "./services/socket.service.js";
 import statusRoutes from "./routes/status.routes.js";
 
+const normalizedFrontendUrl = process.env.FRONTEND_URL?.trim().replace(/\/$/, "");
+const allowedOrigins = new Set(
+  [
+    normalizedFrontendUrl,
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+  ].filter(Boolean)
+);
+
 const corsOption = {
-  origin : process.env.FRONTEND_URL,
-  Credentials : true
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.has(origin.replace(/\/$/, ""))) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials : true
 }
 
 app.use(cors(corsOption))
@@ -57,8 +72,6 @@ app.get('/api/chat/:id',(req,res)=>{
   res.send(singlechat)
 })
 
-app.use('/api/user',userRoutes)
-
 app.use(notFound)
 app.use(errorHandler)
 
@@ -68,7 +81,7 @@ const port = process.env.PORT || 5000;
 const startServer = async () => {
   try {
     await connectDB();
-    app.listen(port, () => {
+    server.listen(port, () => {
       console.log(`server starts on port ${port}`);
     });
   } catch (error) {
