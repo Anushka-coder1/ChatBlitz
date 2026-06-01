@@ -476,12 +476,14 @@ const Login = () => {
                 ))}
               </div>
             </div>
+
+            {/* username */}
             <div className="relative">
               <FaUser
                 className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-400 '}`}
               />
               <input
-                {...profileRegister('username ')}
+                {...profileRegister('username')}
                 type="text"
                 placeholder="Username"
                 className={`w-full pl-10 pr-3 py-2 border ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500`}
