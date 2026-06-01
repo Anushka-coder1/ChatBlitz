@@ -5,7 +5,7 @@ import * as yup from 'yup'
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useNavigate } from 'react-router-dom'
 import { useUserStore } from '@/store/useUserStore'
-import { useForm, Watch } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { useThemeStore } from '@/store/themeStore'
 import { motion } from 'framer-motion'
 import {
@@ -13,7 +13,6 @@ import {
   FaChevronDown,
   FaPlus,
   FaUser,
-  FaWhatsapp,
 } from 'react-icons/fa'
 import { IoLogoSnapchat } from 'react-icons/io5'
 import Spinner from '@/utils/Spinner.jsx'
@@ -72,10 +71,8 @@ const avatars = [
 const Login = () => {
   const { step, setStep, userPhoneData, setUserPhoneData, resetLoginState } =
     userLoginStore()
-  const [phoneNumber, setPhoneNumber] = useState('')
   const [selectedCountry, setSelectedCountry] = useState(countries[0])
   const [otp, setOtp] = useState(['', '', '', '', '', ''])
-  const [email, setEmail] = useState('')
   const [profilePicture, setProfilePicture] = useState(null)
   const [selectedAvatar, setSelectedAvatar] = useState(avatars)
   const [profilePictureFile, setProfilePictureFile] = useState(null)
@@ -84,15 +81,21 @@ const Login = () => {
   const [error, setError] = useState('')
   const navigate = useNavigate()
   const { setUser } = useUserStore()
-  const { theme, setTheme } = useThemeStore()
+  const { theme } = useThemeStore()
   const [loading, setLoading] = useState(false)
 
   const {
     register: loginRegister,
     handleSubmit: handleLoginSubmit,
+    watch: watchLoginForm,
+    setValue: setLoginValue,
     formState: { errors: loginErrors },
   } = useForm({
     resolver: yupResolver(loginValidationSchema),
+    defaultValues: {
+      phoneNumber: '',
+      email: '',
+    },
   })
 
   const {
@@ -119,26 +122,34 @@ const Login = () => {
     )
   })
 
-  const onLoginSubmit = async () => {
+  const phoneNumber = watchLoginForm('phoneNumber') || ''
+  const email = watchLoginForm('email') || ''
+
+  const onLoginSubmit = async (data) => {
     try {
       setLoading(true)
-      if (email) {
-        const response = await sendOtp(null, null, email)
+      setError('')
+
+      const trimmedEmail = data.email?.trim() || ''
+      const trimmedPhoneNumber = data.phoneNumber?.trim() || ''
+
+      if (trimmedEmail) {
+        const response = await sendOtp(null, null, trimmedEmail)
         if (response.status === 'success') {
           toast.info('OTP is send to your email')
-          setUserPhoneData({ email })
+          setUserPhoneData({ email: trimmedEmail })
           setStep(2)
         }
       } else {
         const response = await sendOtp(
-          phoneNumber,
+          trimmedPhoneNumber,
           selectedCountry.dialCode,
           null,
         )
         if (response.status === 'success') {
           toast.info('OTP is send to your phone Number')
           setUserPhoneData({
-            phoneNumber,
+            phoneNumber: trimmedPhoneNumber,
             phoneSuffix: selectedCountry.dialCode,
           })
           setStep(2)
@@ -342,7 +353,12 @@ const Login = () => {
                   {...loginRegister('phoneNumber')}
                   value={phoneNumber}
                   placeholder="Phone Number"
-                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  onChange={(e) =>
+                    setLoginValue('phoneNumber', e.target.value, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
                   className={`w-2/3 px-4 py-3 border ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'} rounded-md focus:outline-none focus:right-2 focus:ring-purple-500 ${loginErrors.phoneNumber ? 'border-red-500' : ''}`}
                 />
               </div>
@@ -373,7 +389,12 @@ const Login = () => {
                   {...loginRegister('email')}
                   value={email}
                   placeholder="Email (Optional)"
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) =>
+                    setLoginValue('email', e.target.value, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
                   className={`w-full bg-transparent focus:outline-none ${theme === 'dark' ? 'text-white' : 'bg-black'} ${loginErrors.email ? 'border-red-500' : ''}`}
                 />
               </div>

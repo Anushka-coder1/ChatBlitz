@@ -64,7 +64,7 @@ const sendMessage = async (req, res) => {
     await message.save()
 
     if (message?.content) {
-      conversation.lastMessage = message?.id
+      conversation.lastMessage = message?._id
     }
     conversation.unreadCount = (conversation.unreadCount || 0) + 1
     await conversation.save()

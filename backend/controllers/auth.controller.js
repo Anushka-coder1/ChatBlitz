@@ -182,6 +182,7 @@ const getAllUsers = async (req, res) => {
         }
       })
     )
+    console.log(usersWithConversation)
     return response(res, 200, 'user retrives successfully', usersWithConversation)
   } catch (error) {
     return response(res, 500, 'Internal server Error')

@@ -25,8 +25,6 @@ export const ProtectedRoute = () => {
       } finally {
         setIsChecking(false)
       }
-
-
     }
     verifyAuth()
   }, [setUser, clearUser])

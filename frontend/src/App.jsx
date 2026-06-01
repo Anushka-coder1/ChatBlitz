@@ -23,7 +23,7 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/user-profile" element={<UserDetails />} />
             <Route path="/status" element={<Status />} />
-            <Route path="/setting" element={<Setting/>} />
+            <Route path="/setting" element={<Setting />} />
           </Route>
         </Routes>
       </div>
