@@ -1,227 +1,570 @@
-import { cloudinary, uploadFileToCloudinary } from "../config/cloudinary.js"
-import Conversation from "../models/conversation.model.js"
-import Message from "../models/message.model.js"
-import response from "../utils/responseHandler.js"
+import Chat from "../models/chat.model.js";
+import Message from "../models/message.model.js";
+import Notification from "../models/notification.model.js";
+import User from "../models/user.model.js";
+import { deleteCloudinaryFile, uploadFileToCloudinary } from "../config/cloudinary.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { httpError } from "../utils/httpError.js";
+import { ensureArray } from "../utils/validators.js";
 
-const sendMessage = async (req, res) => {
-  try {
-    const { receiverId, content, messageStatus } = req.body
-    const senderId = req.user.userId
-    const file = req.file
-    const participants = [senderId, receiverId].sort()
+const chatListPopulation = [
+  { path: "participants", select: "name username email profilePicture isOnline lastSeen bio" },
+  { path: "admins", select: "name username profilePicture" },
+  { path: "owner", select: "name username profilePicture" },
+  {
+    path: "lastMessage",
+    populate: { path: "sender", select: "name username profilePicture" },
+  },
+];
 
-    //check if conversation already exists
-    let conversation = await Conversation.findOne({
-      participants: participants
-    })
+const messagePopulation = [
+  { path: "sender", select: "name username profilePicture isOnline lastSeen" },
+  { path: "readBy.user", select: "name username profilePicture" },
+];
 
-    if (!conversation) {
-      conversation = new Conversation({
-        participants
-      })
-      await conversation.save()
-    }
-
-    let imageOrVideoUrl = null
-    let contentType = null
-
-    //handle file upload
-    if (file) {
-      const uploadFile = await uploadFileToCloudinary(file)
-
-      if (!uploadFile?.secure_url) {
-        return response(res, 400, 'failed to upload file')
-      }
-
-      imageOrVideoUrl = uploadFile?.secure_url
-
-      if (file.mimetype.startsWith('image')) {
-        contentType = "image"
-      }
-      else if (file.mimetype.startsWith('video')) {
-        contentType = "video"
-      }
-      else {
-        return response(res, 400, "Unsupported file type")
-      }
-    } else if (content?.trim()) {
-      contentType = "text"
-    }
-    else {
-      return response(res, 400, "messsage content is required")
-    }
-
-    const message = new Message({
-      conversation: conversation?._id,
-      sender: senderId,
-      receiver: receiverId,
-      content,
-      contentType,
-      imageOrVideoUrl,
-      messageStatus
-    })
-
-    await message.save()
-
-    if (message?.content) {
-      conversation.lastMessage = message?._id
-    }
-    conversation.unreadCount = (conversation.unreadCount || 0) + 1
-    await conversation.save()
-
-    const populatedMessage = await Message.findById(message?._id)
-      .populate("sender", "username profilePicture")
-      .populate("receiver", "username profilePicture")
-
-    // emit socket event for real time
-    if (req.io && req.socketUserMap) {
-      const receiverSocketId = req.socketUserMap.get(receiverId)
-      if(receiverSocketId){
-        req.io.to(receiverSocketId).emit("receive_message" , populatedMessage)
-        message.messageStatus = "delivered"
-        await message.save()
-      }
-    }
-
-    return response(res, 201, "message send Successfully", populatedMessage)
-  } catch (error) {
-    console.error(error)
-    return response(res, 500, 'Internal server Error')
+const ensureChatMember = async (chatId, userId) => {
+  const chat = await Chat.findById(chatId);
+  if (!chat) {
+    throw httpError(404, "Chat not found.");
   }
-}
 
-//get all conversation
-const getConversation = async (req, res) => {
-  const userId = req.user.userId
-  try {
-    let conversation = await Conversation.find({
-      participants: userId
-    }).populate("participants", "username profilePicture isOnline lastSeen")
-      .populate({
-        path: "lastMessage",
-        populate: {
-          path: "sender receiver",
-          select: "username profilePicture"
-        }
-      }).sort({ updatedAt: -1 })
-    return response(res, 201, "conversation get successfully", conversation)
-  } catch (error) {
-    return response(res, 500, 'Internal server Error')
+  if (!chat.participants.some((participant) => participant.toString() === userId)) {
+    throw httpError(403, "You do not have access to this chat.");
   }
-}
 
-//get messages of specific converstion
-const getMessages = async (req, res) => {
-  const { conversationId } = req.params
-  const userId = req.user.userId
-  try {
-    const conversation = await Conversation.findById(conversationId)
-    if (!conversation) {
-      return response(res, 404, "Conversation not found")
-    }
+  return chat;
+};
 
-    const isParticipant = conversation.participants.some(
-      (participant) => participant.toString() === userId
-    );
+const buildChatSummary = (chat, currentUserId) => {
+  const lastMessage = chat.lastMessage || null;
+  const unreadCount = lastMessage
+    ? undefined
+    : 0;
 
-    if (!isParticipant) {
-      return response(res, 403, "Not authorized to view this conversation");
-    }
+  return {
+    _id: chat._id,
+    isGroup: chat.isGroup,
+    name: chat.name,
+    description: chat.description,
+    avatar: chat.avatar,
+    participants: chat.participants,
+    admins: chat.admins,
+    owner: chat.owner,
+    updatedAt: chat.updatedAt,
+    createdAt: chat.createdAt,
+    lastMessage,
+    unreadCount,
+    counterpart:
+      !chat.isGroup && Array.isArray(chat.participants)
+        ? chat.participants.find((participant) => participant._id.toString() !== currentUserId) || null
+        : null,
+  };
+};
 
-    const messages = await Message
-      .find({ conversation: conversationId })
-      .populate("sender", "username profilePicture")
-      .populate("receiver", "username profilePicture")
-      .sort("createdAt")
+const buildMessagePayload = (message, chat) => {
+  const source = typeof message.toObject === "function" ? message.toObject() : message;
+  const totalRecipients = chat.participants.length - 1;
+  const deliveredCount = source.deliveredTo.length;
+  const senderId = source.sender?._id?.toString?.() || source.sender?.toString?.();
+  const readCount = source.readBy.filter((entry) => {
+    const readerId = entry.user?._id?.toString?.() || entry.user?.toString?.();
+    return readerId !== senderId;
+  }).length;
 
-    await Message.updateMany({
-      conversation: conversationId,
-      receiver: userId,
-      messageStatus: { $in: ["send", "delivered"] },
+  return {
+    ...source,
+    delivery: {
+      deliveredCount,
+      readCount,
+      totalRecipients,
+      isDeliveredToAll: deliveredCount >= totalRecipients,
+      isReadByAll: readCount >= totalRecipients,
     },
-      {
-        $set: {
-          messageStatus: "read"
-        }
-      }
-    )
+  };
+};
 
-    conversation.unreadCount = 0
-    await conversation.save()
+const createNotification = async ({ userId, actorId, chatId, title, body, io }) => {
+  const notification = await Notification.create({
+    user: userId,
+    actor: actorId,
+    chat: chatId,
+    type: "message",
+    title,
+    body,
+  });
 
-    return response(res, 200, "message retrived", messages)
-  } catch (error) {
-    return response(res, 500, 'Internal server Error')
+  io.to(`user:${userId}`).emit("notification:new", notification);
+  return notification;
+};
+
+export const createDirectChat = asyncHandler(async (req, res) => {
+  const { userId } = req.body;
+
+  if (!userId) {
+    throw httpError(400, "Target user is required.");
   }
-}
 
-const markAsRead = async (req, res) => {
-  const {messageIds} = req.body
-  const userId = req.user.userId
+  if (userId === req.user.userId) {
+    throw httpError(400, "You cannot create a chat with yourself.");
+  }
 
-  try {
-    // get relevant messages
-    let messages = await Message.find({
-      _id: { $in: messageIds },
-      receiver: userId,
-    })
+  const targetUser = await User.findById(userId);
+  if (!targetUser) {
+    throw httpError(404, "Target user not found.");
+  }
 
-    // update messages
-    await Message.updateMany(
-      {
-        _id: { $in: messageIds },
-        receiver: userId,
+  let chat = await Chat.findOne({
+    isGroup: false,
+    participants: { $all: [req.user.userId, userId], $size: 2 },
+  }).populate(chatListPopulation);
+
+  if (!chat) {
+    chat = await Chat.create({
+      isGroup: false,
+      participants: [req.user.userId, userId],
+    });
+
+    chat = await Chat.findById(chat._id).populate(chatListPopulation);
+  }
+
+  res.status(201).json({
+    status: "success",
+    data: buildChatSummary(chat, req.user.userId),
+  });
+});
+
+export const createGroupChat = asyncHandler(async (req, res) => {
+  const { name, description = "", memberIds = [] } = req.body;
+  const members = [...new Set([req.user.userId, ...ensureArray(memberIds).filter(Boolean)])];
+
+  if (!name?.trim()) {
+    throw httpError(400, "Group name is required.");
+  }
+
+  if (members.length < 3) {
+    throw httpError(400, "A group needs at least 3 members including you.");
+  }
+
+  const foundMembers = await User.find({ _id: { $in: members } }).select("_id");
+  if (foundMembers.length !== members.length) {
+    throw httpError(400, "One or more selected members do not exist.");
+  }
+
+  const chat = await Chat.create({
+    isGroup: true,
+    name: name.trim(),
+    description: description.trim(),
+    participants: members,
+    admins: [req.user.userId],
+    owner: req.user.userId,
+  });
+
+  const populatedChat = await Chat.findById(chat._id).populate(chatListPopulation);
+
+  req.io.to(chat._id.toString()).emit("chat:created", populatedChat);
+  members.forEach((memberId) => {
+    req.io.to(`user:${memberId}`).emit("chat:created", buildChatSummary(populatedChat, req.user.userId));
+  });
+
+  res.status(201).json({
+    status: "success",
+    data: buildChatSummary(populatedChat, req.user.userId),
+  });
+});
+
+export const getChats = asyncHandler(async (req, res) => {
+  const page = Math.max(Number(req.query.page || 1), 1);
+  const limit = Math.min(Math.max(Number(req.query.limit || 20), 1), 50);
+  const skip = (page - 1) * limit;
+
+  const filters = { participants: req.user.userId };
+
+  const chats = await Chat.find(filters)
+    .sort({ updatedAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .populate(chatListPopulation)
+    .lean();
+
+  const chatIds = chats.map((chat) => chat._id);
+  const unreadCounts = await Message.aggregate([
+    {
+      $match: {
+        chat: { $in: chatIds },
+        sender: { $ne: req.user.userId },
+        "readBy.user": { $ne: req.user.userId },
+        deletedAt: null,
       },
-      { $set: { messageStatus: "read" } }
-    )
+    },
+    {
+      $group: {
+        _id: "$chat",
+        count: { $sum: 1 },
+      },
+    },
+  ]);
 
-    // notify to original sender
-    if (req.io && req.socketUserMap) {
-      for (const message of messages) {
-        const senderSocketId = req.socketUserMap.get(message.sender,toString())
-        if(senderSocketId) {
-          const updatedMessage = {
-            _id : message._id,
-            messageStatus : "read"
-          }
-          req.io.to(senderSocketId).emit("message_read" , updatedMessage)
-        }
-        await message.save()
-      }
-    }
+  const unreadCountMap = new Map(unreadCounts.map((entry) => [entry._id.toString(), entry.count]));
 
-    return response(res, 200, "message mark as read", messages)
-  } catch (error) {
-    console.error(error)
-    return response(res, 500, 'Internal server Error')
+  res.json({
+    status: "success",
+    data: chats.map((chat) => ({
+      ...buildChatSummary(chat, req.user.userId),
+      unreadCount: unreadCountMap.get(chat._id.toString()) || 0,
+    })),
+    pagination: {
+      page,
+      limit,
+      hasMore: chats.length === limit,
+    },
+  });
+});
+
+export const getMessages = asyncHandler(async (req, res) => {
+  const chat = await ensureChatMember(req.params.chatId, req.user.userId);
+
+  const page = Math.max(Number(req.query.page || 1), 1);
+  const limit = Math.min(Math.max(Number(req.query.limit || 25), 1), 50);
+  const skip = (page - 1) * limit;
+
+  const messages = await Message.find({
+    chat: chat._id,
+    deletedAt: null,
+  })
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .populate(messagePopulation)
+    .lean();
+
+  const orderedMessages = messages.reverse().map((message) => buildMessagePayload(message, chat));
+
+  res.json({
+    status: "success",
+    data: orderedMessages,
+    pagination: {
+      page,
+      limit,
+      hasMore: messages.length === limit,
+    },
+  });
+});
+
+export const sendMessage = asyncHandler(async (req, res) => {
+  const chat = await ensureChatMember(req.params.chatId, req.user.userId);
+  const text = req.body.text?.trim() || "";
+  const files = ensureArray(req.files);
+
+  if (!text && files.length === 0) {
+    throw httpError(400, "Message text or an attachment is required.");
   }
-}
 
-const deleteMessage = async (req, res) => {
-  const { messageId } = req.params
-  const userId = req.user.userId
-  try {
-    const message = await Message.findById(messageId)
-    if (!message) {
-      return response(res, 404, "message not found")
-    }
-
-    if (message.sender.toString() !== userId) {
-      return response(res, 403, "Not authorized to delete this message")
-    }
-
-    await message.deleteOne()
-
-    if (req.io && req.socketUserMap) {
-      const receiverSocketId = req.socketUserMap.get(message.receiver.toString())
-      if(receiverSocketId){
-        req.io.to(receiverSocketId).emit("message_deleted" , messageId)
-      }
-    }
-    return response(res, 200, "message deleted successfully")
-  } catch (error) {
-    return response(res, 500, 'Internal server Error')
+  const attachments = [];
+  for (const file of files) {
+    const upload = await uploadFileToCloudinary(file, "chatblitz/messages");
+    attachments.push({
+      url: upload.url,
+      publicId: upload.publicId,
+      fileName: file.originalname,
+      mimeType: file.mimetype,
+      size: upload.size,
+      resourceType: upload.resourceType,
+      width: upload.width,
+      height: upload.height,
+      duration: upload.duration,
+    });
   }
-}
 
-export { sendMessage, getConversation, getMessages, markAsRead, deleteMessage }
+  const onlineRecipients = chat.participants.filter(
+    (participantId) =>
+      participantId.toString() !== req.user.userId && req.socketUsers.has(participantId.toString()),
+  );
+
+  let message = await Message.create({
+    chat: chat._id,
+    sender: req.user.userId,
+    text,
+    attachments,
+    deliveredTo: onlineRecipients,
+    readBy: [{ user: req.user.userId }],
+  });
+
+  chat.lastMessage = message._id;
+  await chat.save();
+
+  message = await Message.findById(message._id).populate(messagePopulation);
+  const payload = buildMessagePayload(message, chat);
+
+  req.io.to(chat._id.toString()).emit("message:new", payload);
+  req.io.emit("chat:updated", { chatId: chat._id.toString() });
+
+  const sender = await User.findById(req.user.userId).select("name username");
+  await Promise.all(
+    chat.participants
+      .filter((participantId) => participantId.toString() !== req.user.userId)
+      .map((participantId) =>
+        createNotification({
+          userId: participantId.toString(),
+          actorId: req.user.userId,
+          chatId: chat._id,
+          title: chat.isGroup ? chat.name : sender?.name || "New message",
+          body: text || (attachments.length ? `Sent ${attachments.length} attachment${attachments.length > 1 ? "s" : ""}` : "New message"),
+          io: req.io,
+        }),
+      ),
+  );
+
+  res.status(201).json({
+    status: "success",
+    data: payload,
+  });
+});
+
+export const editMessage = asyncHandler(async (req, res) => {
+  const chat = await ensureChatMember(req.params.chatId, req.user.userId);
+  const { text } = req.body;
+
+  if (!text?.trim()) {
+    throw httpError(400, "Updated message text is required.");
+  }
+
+  const message = await Message.findById(req.params.messageId).populate(messagePopulation);
+  if (!message || message.chat.toString() !== chat._id.toString() || message.deletedAt) {
+    throw httpError(404, "Message not found.");
+  }
+
+  if (message.sender._id.toString() !== req.user.userId) {
+    throw httpError(403, "You can only edit your own messages.");
+  }
+
+  message.text = text.trim();
+  message.editedAt = new Date();
+  await message.save();
+
+  const payload = buildMessagePayload(message, chat);
+  req.io.to(chat._id.toString()).emit("message:updated", payload);
+
+  res.json({
+    status: "success",
+    data: payload,
+  });
+});
+
+export const deleteMessage = asyncHandler(async (req, res) => {
+  const chat = await ensureChatMember(req.params.chatId, req.user.userId);
+  const message = await Message.findById(req.params.messageId);
+
+  if (!message || message.chat.toString() !== chat._id.toString() || message.deletedAt) {
+    throw httpError(404, "Message not found.");
+  }
+
+  if (message.sender.toString() !== req.user.userId && !chat.admins.some((adminId) => adminId.toString() === req.user.userId)) {
+    throw httpError(403, "You are not allowed to delete this message.");
+  }
+
+  message.deletedAt = new Date();
+  await message.save();
+
+  await Promise.all(
+    message.attachments.map((attachment) => deleteCloudinaryFile(attachment.publicId, attachment.resourceType).catch(() => {})),
+  );
+
+  req.io.to(chat._id.toString()).emit("message:deleted", {
+    chatId: chat._id.toString(),
+    messageId: message._id.toString(),
+  });
+
+  res.json({
+    status: "success",
+    message: "Message deleted successfully.",
+  });
+});
+
+export const markChatAsRead = asyncHandler(async (req, res) => {
+  const chat = await ensureChatMember(req.params.chatId, req.user.userId);
+
+  const unreadMessages = await Message.find({
+    chat: chat._id,
+    sender: { $ne: req.user.userId },
+    deletedAt: null,
+    "readBy.user": { $ne: req.user.userId },
+  });
+
+  if (unreadMessages.length === 0) {
+    res.json({ status: "success", data: [] });
+    return;
+  }
+
+  await Message.updateMany(
+    {
+      _id: { $in: unreadMessages.map((message) => message._id) },
+    },
+    {
+      $push: {
+        readBy: {
+          user: req.user.userId,
+          readAt: new Date(),
+        },
+      },
+    },
+  );
+
+  req.io.to(chat._id.toString()).emit("chat:read", {
+    chatId: chat._id.toString(),
+    userId: req.user.userId,
+    messageIds: unreadMessages.map((message) => message._id.toString()),
+  });
+
+  res.json({
+    status: "success",
+    data: unreadMessages.map((message) => message._id.toString()),
+  });
+});
+
+export const updateGroup = asyncHandler(async (req, res) => {
+  const chat = await ensureChatMember(req.params.chatId, req.user.userId);
+
+  if (!chat.isGroup) {
+    throw httpError(400, "This action is only available for group chats.");
+  }
+
+  const isAdmin = chat.admins.some((adminId) => adminId.toString() === req.user.userId);
+  if (!isAdmin) {
+    throw httpError(403, "Only group admins can update this group.");
+  }
+
+  const { action, name, description, memberId } = req.body;
+
+  if (action === "rename") {
+    if (!name?.trim()) {
+      throw httpError(400, "Group name is required.");
+    }
+    chat.name = name.trim();
+    chat.description = typeof description === "string" ? description.trim() : chat.description;
+  } else if (action === "add-member") {
+    if (!memberId) {
+      throw httpError(400, "Member is required.");
+    }
+    if (!chat.participants.some((participantId) => participantId.toString() === memberId)) {
+      chat.participants.push(memberId);
+    }
+  } else if (action === "remove-member") {
+    if (!memberId) {
+      throw httpError(400, "Member is required.");
+    }
+    if (chat.owner?.toString() === memberId) {
+      throw httpError(400, "The group owner cannot be removed.");
+    }
+    chat.participants = chat.participants.filter((participantId) => participantId.toString() !== memberId);
+    chat.admins = chat.admins.filter((adminId) => adminId.toString() !== memberId);
+  } else if (action === "toggle-admin") {
+    if (!memberId) {
+      throw httpError(400, "Member is required.");
+    }
+    const isAlreadyAdmin = chat.admins.some((adminId) => adminId.toString() === memberId);
+    if (isAlreadyAdmin) {
+      chat.admins = chat.admins.filter((adminId) => adminId.toString() !== memberId);
+    } else {
+      chat.admins.push(memberId);
+    }
+  } else {
+    throw httpError(400, "Unsupported group action.");
+  }
+
+  await chat.save();
+  const populatedChat = await Chat.findById(chat._id).populate(chatListPopulation);
+
+  req.io.to(chat._id.toString()).emit("chat:updated", buildChatSummary(populatedChat, req.user.userId));
+
+  res.json({
+    status: "success",
+    data: buildChatSummary(populatedChat, req.user.userId),
+  });
+});
+
+export const leaveGroup = asyncHandler(async (req, res) => {
+  const chat = await ensureChatMember(req.params.chatId, req.user.userId);
+
+  if (!chat.isGroup) {
+    throw httpError(400, "This action is only available for group chats.");
+  }
+
+  chat.participants = chat.participants.filter((participantId) => participantId.toString() !== req.user.userId);
+  chat.admins = chat.admins.filter((adminId) => adminId.toString() !== req.user.userId);
+
+  if (chat.owner?.toString() === req.user.userId) {
+    chat.owner = chat.admins[0] || chat.participants[0] || null;
+    if (chat.owner && !chat.admins.some((adminId) => adminId.toString() === chat.owner.toString())) {
+      chat.admins.push(chat.owner);
+    }
+  }
+
+  if (chat.participants.length === 0) {
+    await chat.deleteOne();
+  } else {
+    await chat.save();
+    req.io.to(chat._id.toString()).emit("chat:updated", { chatId: chat._id.toString(), removedUserId: req.user.userId });
+  }
+
+  res.json({
+    status: "success",
+    message: "You left the group.",
+  });
+});
+
+export const deleteGroup = asyncHandler(async (req, res) => {
+  const chat = await ensureChatMember(req.params.chatId, req.user.userId);
+
+  if (!chat.isGroup) {
+    throw httpError(400, "This action is only available for group chats.");
+  }
+
+  if (chat.owner?.toString() !== req.user.userId) {
+    throw httpError(403, "Only the group owner can delete the group.");
+  }
+
+  const messages = await Message.find({ chat: chat._id });
+  await Promise.all(
+    messages.flatMap((message) =>
+      message.attachments.map((attachment) => deleteCloudinaryFile(attachment.publicId, attachment.resourceType).catch(() => {})),
+    ),
+  );
+  await Message.deleteMany({ chat: chat._id });
+  await Notification.deleteMany({ chat: chat._id });
+  await chat.deleteOne();
+
+  req.io.to(chat._id.toString()).emit("chat:deleted", { chatId: chat._id.toString() });
+
+  res.json({
+    status: "success",
+    message: "Group deleted successfully.",
+  });
+});
+
+export const getChatAttachments = asyncHandler(async (req, res) => {
+  const chat = await ensureChatMember(req.params.chatId, req.user.userId);
+
+  const attachments = await Message.find({
+    chat: chat._id,
+    deletedAt: null,
+    attachments: { $exists: true, $ne: [] },
+  })
+    .select("attachments sender createdAt")
+    .populate("sender", "name username profilePicture")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const data = attachments.flatMap((message) =>
+    message.attachments.map((attachment) => ({
+      ...attachment,
+      sender: message.sender,
+      createdAt: message.createdAt,
+      messageId: message._id,
+    })),
+  );
+
+  res.json({
+    status: "success",
+    data,
+  });
+});

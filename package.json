@@ -13,11 +13,13 @@
   "license": "ISC",
   "author": "Anushka Verma",
   "type": "module",
-  "main": "server.js",
+  "main": "backend/server.js",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "nodemon backend/server.js",
-    "client": "npm run dev --prefix frontend"
+    "client": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "start": "node backend/server.js"
   },
   "dependencies": {
     "@cloudinary/react": "^1.14.4",

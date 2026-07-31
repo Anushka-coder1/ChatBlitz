@@ -1,51 +1,71 @@
-import { useEffect, useState } from "react"
-import { Navigate, Outlet, useLocation } from "react-router-dom"
-import { useUserStore } from "./store/useUserStore"
-import { checkUserAuth } from "./services/user.service"
-import Loader from "./utils/Loader.jsx"
+import { useEffect, useState } from "react";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+
+import { getCurrentUser } from "./services/auth.service.js";
+import { useUserStore } from "./store/useUserStore.js";
+
+const ScreenLoader = () => (
+  <div className="flex min-h-screen items-center justify-center bg-[var(--bg)] text-[var(--text)]">
+    <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-4 shadow-2xl backdrop-blur">
+      Checking your session...
+    </div>
+  </div>
+);
 
 export const ProtectedRoute = () => {
-  const location = useLocation()
-  const [isChecking, setIsChecking] = useState(true)
-
-  const { isAuthenticated, setUser, clearUser } = useUserStore()
+  const location = useLocation();
+  const { token, setUser, clearUser } = useUserStore();
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    const verifyAuth = async () => {
+    let ignore = false;
+
+    const verify = async () => {
+      if (!token) {
+        if (!ignore) setIsChecking(false);
+        return;
+      }
+
       try {
-        const result = await checkUserAuth()
-        if (result?.isAuthenticated) {
-          setUser(result.user)
-        } else {
+        const response = await getCurrentUser();
+        if (!ignore) {
+          setUser(response.data, token);
+        }
+      } catch {
+        if (!ignore) {
           clearUser();
         }
-      } catch (error) {
-        console.error(error)
-        clearUser()
       } finally {
-        setIsChecking(false)
+        if (!ignore) {
+          setIsChecking(false);
+        }
       }
-    }
-    verifyAuth()
-  }, [setUser, clearUser])
+    };
+
+    verify();
+
+    return () => {
+      ignore = true;
+    };
+  }, [token, setUser, clearUser]);
 
   if (isChecking) {
-    return <Loader />
-  }
-  if (!isAuthenticated) {
-    return <Navigate to="/user-login" state={{from:location}} replace />
-
+    return <ScreenLoader />;
   }
 
-  //user is auth render the protected route
-  return <Outlet/>
-}
+  if (!token) {
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  }
 
-export const PublicRoute = ()=> {
-    const isAuthenticated= useUserStore(state => state.isAuthenticated)
-    if(isAuthenticated){
-      return <Navigate to='/' replace/>
-    }
-    return <Outlet/>
+  return <Outlet />;
+};
 
-}
+export const PublicRoute = () => {
+  const { token } = useUserStore();
+
+  if (token) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <Outlet />;
+};

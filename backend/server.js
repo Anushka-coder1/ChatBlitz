@@ -1,93 +1,82 @@
-import dotenv from "dotenv"
+import dotenv from "dotenv";
 dotenv.config();
 
+import http from "http";
 import express from "express";
-const app = express();
-
-import connectDB from "./config/db.js";
-import authRoutes from "./routes/auth.routes.js"
-import chatRoutes from "./routes/chat.routes.js"
-
-import { errorHandler, notFound } from "./middleware/error.middleware.js";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import bodyParser from "body-parser";
-import http from "http"
-import { initializeSocket } from "./services/socket.service.js";
-import statusRoutes from "./routes/status.routes.js";
 
-const normalizedFrontendUrl = process.env.FRONTEND_URL?.trim().replace(/\/$/, "");
-const allowedOrigins = new Set(
-  [
-    normalizedFrontendUrl,
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:5174",
-  ].filter(Boolean)
+import connectDB from "./config/db.js";
+import { configureUploadsDirectory } from "./config/cloudinary.js";
+import authRoutes from "./routes/auth.routes.js";
+import userRoutes from "./routes/user.routes.js";
+import chatRoutes from "./routes/chat.routes.js";
+import notificationRoutes from "./routes/notification.routes.js";
+import { notFound, errorHandler } from "./middleware/error.middleware.js";
+import { applySecurityHeaders, apiRateLimiter, sanitizeInput } from "./middleware/security.middleware.js";
+import { initializeSocket } from "./services/socket.service.js";
+
+const app = express();
+const server = http.createServer(app);
+
+const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
+const allowedOrigins = new Set([
+  frontendUrl,
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+]);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.has(origin.replace(/\/$/, ""))) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+    credentials: true,
+  }),
 );
 
-const corsOption = {
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.has(origin.replace(/\/$/, ""))) {
-      return callback(null, true);
-    }
-    return callback(new Error(`CORS blocked for origin: ${origin}`));
-  },
-  credentials : true
-}
+app.use(applySecurityHeaders);
+app.use(apiRateLimiter);
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+app.use(cookieParser());
+app.use(sanitizeInput);
+configureUploadsDirectory();
 
-app.use(cors(corsOption))
+const io = initializeSocket(server);
+app.use((req, _res, next) => {
+  req.io = io;
+  req.socketUsers = io.socketUsers;
+  next();
+});
 
-//middleware
-app.use(express.json()); //parse body data
-app.use(cookieParser()) //parse token on every request
-app.use(bodyParser.urlencoded({extended: true}))
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
 
-//create server
-const server = http.createServer(app)
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/chats", chatRoutes);
+app.use("/api/notifications", notificationRoutes);
 
-const io = initializeSocket(server)
-//apply socket middleware before routes
-app.use((req,res,next) => {
-  req.io = io 
-  req.socketUserMap = io.socketUserMap
-  next()
-})
+app.use(notFound);
+app.use(errorHandler);
 
-//routes
-app.use('/api/auth',authRoutes)
-app.use('/api/chat',chatRoutes)
-app.get('/',(req,res)=>{
-  res.send("API is running")
-})
-app.use('/api/status' ,statusRoutes)
+const port = Number(process.env.PORT || 5000);
 
-app.get('/api/chat',(req,res)=>{
-  res.send(chats)
-})
-
-app.get('/api/chat/:id',(req,res)=>{
-  const singlechat = chats.find((c)=>c._id===req.params.id)
-  res.send(singlechat)
-})
-
-app.use(notFound)
-app.use(errorHandler)
-
-const port = process.env.PORT || 5000;
-
-//starting server and conecting to DB
 const startServer = async () => {
-  try {
-    await connectDB();
-    server.listen(port, () => {
-      console.log(`server starts on port ${port}`);
-    });
-  } catch (error) {
-    console.error(error.message);
-    process.exit(1);
-  }
+  await connectDB();
+  server.listen(port, () => {
+    console.log(`ChatBlitz API listening on port ${port}`);
+  });
 };
 
-startServer();
+startServer().catch((error) => {
+  console.error("Failed to start server", error);
+  process.exit(1);
+});

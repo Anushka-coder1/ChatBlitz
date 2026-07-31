@@ -4,16 +4,14 @@ const connectDB = async () => {
   const mongoUri = process.env.MONGO_URI?.trim();
 
   if (!mongoUri) {
-    throw new Error("MONGO_URI is missing. Add it to your .env file.");
+    throw new Error("MONGO_URI is missing. Add it to your environment configuration.");
   }
 
-  try {
-    await mongoose.connect(mongoUri);
-    console.log("MongoDB connected");
-  } catch (error) {
-    throw new Error('MongoDB connection failed: ' , error.message);
-    process.exit(1);
-  }
+  await mongoose.connect(mongoUri, {
+    autoIndex: true,
+  });
+
+  console.log("MongoDB connected");
 };
 
 export default connectDB;

@@ -1,60 +1,88 @@
-import mongoose from 'mongoose'
+import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
+    name: {
+      type: String,
+      trim: true,
+      maxlength: 60,
+      default: "",
+      validate: {
+        validator: (value) => !value || value.length >= 2,
+        message: "Name must be at least 2 characters long.",
+      },
+    },
     username: {
       type: String,
+      unique: true,
+      sparse: true,
+      lowercase: true,
+      trim: true,
+      maxlength: 30,
+      validate: {
+        validator: (value) => !value || /^[a-z0-9_]+$/.test(value),
+        message: "Username may only contain lowercase letters, numbers, and underscores.",
+      },
+    },
+    email: {
+      type: String,
+      unique: true,
+      sparse: true,
+      lowercase: true,
+      trim: true,
     },
     phoneNumber: {
       type: String,
       unique: true,
-      sparse: true,//check uniquness only when value is entered
+      sparse: true,
+      trim: true,
     },
     phoneSuffix: {
       type: String,
-      unique: false,
-    },
-    email: {
-      type: String,
-      lowercase: true,
-      match: [/.+\@.+\..+/, 'Email format is invalid.'],
-      unique: true,
-      sparse: true,//check uniquness only when value is entered
+      trim: true,
+      default: "",
     },
     emailOtp: {
       type: String,
+      default: "",
     },
     emailOtpExpiry: {
       type: Date,
-    },
-    profilePicture: {
-      type: String,
-      default: "https://icon-library.com/images/anonymous-avatar-icon/anonymous-avatar-icon-25.jpg"
-    },
-    about: {
-      type: String,
-    },
-    lastSeen: {
-      type: Date
-    },
-    isOnline: {
-      type: Boolean,
-      default: false,
+      default: null,
     },
     isVerified: {
       type: Boolean,
       default: false,
     },
-    agreed : {
+    bio: {
+      type: String,
+      default: "",
+      maxlength: 180,
+    },
+    profilePicture: {
+      type: String,
+      default: "",
+    },
+    profilePicturePublicId: {
+      type: String,
+      default: "",
+    },
+    lastSeen: {
+      type: Date,
+      default: Date.now,
+    },
+    isOnline: {
       type: Boolean,
       default: false,
-    }
+    },
   },
   {
-    timestamps: true
-  }
-)
+    timestamps: true,
+  },
+);
 
-const User = mongoose.model("User", userSchema)
+userSchema.index({ name: "text", username: "text", email: "text", phoneNumber: "text" });
+
+const User = mongoose.model("User", userSchema);
 
 export default User;

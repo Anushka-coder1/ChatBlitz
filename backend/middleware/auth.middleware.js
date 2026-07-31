@@ -1,22 +1,32 @@
-import jwt from "jsonwebtoken";
-import response from "../utils/responseHandler.js";
+import { verifyToken } from "../utils/jwt.js";
+import { httpError } from "../utils/httpError.js";
 
-const authMiddleware = (req ,res , next)=>{
-  const authToken =  req.cookies?.auth_token;
+const getTokenFromRequest = (req) => {
+  const cookieToken = req.cookies?.auth_token;
+  if (cookieToken) return cookieToken;
 
-  if(!authToken){
-    return response(res,401,'authorization token missing , please provide tokon')
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith("Bearer ")) {
+    return authHeader.slice(7);
+  }
+
+  return null;
+};
+
+const authMiddleware = (req, _res, next) => {
+  const token = getTokenFromRequest(req);
+
+  if (!token) {
+    next(httpError(401, "Authentication required"));
+    return;
   }
 
   try {
-    const decode = jwt.verify(authToken , process.env.JWT_SECRET)
-    console.log(decode)
-    req.user = decode
+    req.user = verifyToken(token);
     next();
-  } catch (error) {
-    console.error(error)
-    return response(res,401,'invalid or expired token')
+  } catch {
+    next(httpError(401, "Invalid or expired token"));
   }
-}
+};
 
-export default authMiddleware
+export default authMiddleware;

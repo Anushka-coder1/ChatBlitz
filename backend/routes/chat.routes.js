@@ -1,15 +1,37 @@
 import express from "express";
-import { sendMessage, getConversation, getMessages, markAsRead ,deleteMessage } from "../controllers/chat.controller.js";
+
 import authMiddleware from "../middleware/auth.middleware.js";
-import { multerMiddleware } from "../config/cloudinary.js";
+import { uploadMiddleware } from "../config/cloudinary.js";
+import {
+  createDirectChat,
+  createGroupChat,
+  deleteGroup,
+  deleteMessage,
+  editMessage,
+  getChatAttachments,
+  getChats,
+  getMessages,
+  leaveGroup,
+  markChatAsRead,
+  sendMessage,
+  updateGroup,
+} from "../controllers/chat.controller.js";
 
 const router = express.Router();
 
-router.post("/send-message",authMiddleware , multerMiddleware , sendMessage);
-router.get("/conversation",authMiddleware, getConversation)
-router.get("/conversation/:conversationId/messages",authMiddleware, getMessages)
+router.use(authMiddleware);
 
-router.put('/messages/read', authMiddleware, markAsRead)
-router.delete('/messages/:messageId', authMiddleware, deleteMessage)
+router.post("/direct", createDirectChat);
+router.post("/group", createGroupChat);
+router.get("/", getChats);
+router.get("/:chatId/messages", getMessages);
+router.post("/:chatId/messages", uploadMiddleware.array("files", 6), sendMessage);
+router.patch("/:chatId/messages/:messageId", editMessage);
+router.delete("/:chatId/messages/:messageId", deleteMessage);
+router.patch("/:chatId/read", markChatAsRead);
+router.patch("/:chatId/group", updateGroup);
+router.post("/:chatId/group/leave", leaveGroup);
+router.delete("/:chatId/group", deleteGroup);
+router.get("/:chatId/attachments", getChatAttachments);
 
 export default router;

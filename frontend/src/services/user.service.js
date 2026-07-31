@@ -1,67 +1,20 @@
-import axiosInstance from "./url.service"
+import api from "./api.js";
 
-export const sendOtp = async (phoneNumber, phoneSuffix, email) => {
-  try {
-    const response = await axiosInstance.post('/auth/send-otp', {
-      phoneNumber,
-      phoneSuffix,
-      email,
-    })
-    return response.data
-  } catch (error) {
-    throw error.response?.data || error
-  }
-}
-export const verifyOtp = async (phoneNumber, phoneSuffix, otp ,email) => {
-  try {
-    const response = await axiosInstance.post('/auth/verify-otp', {
-      phoneNumber,
-      phoneSuffix,
-      otp,
-      email,
-    })
-    return response.data
-  } catch (error) {
-    throw error.response?.data || error
-  }
-}
+export const searchUsers = async (search = "") => {
+  const response = await api.get("/users", { params: { search } });
+  return response.data;
+};
 
-export const updateUserProfile = async(updateData) => {
-  try {
-    const response = await axiosInstance.put('/auth/update-profile' , updateData)
-    return response.data
-  } catch (error) {
-    throw error.response ? error.response.data : error.message
-  }
-}
+export const getUserDetails = async (userId) => {
+  const response = await api.get(`/users/${userId}`);
+  return response.data;
+};
 
-export const checkUserAuth = async() => {
-  try {
-    const response = await axiosInstance.get('/auth/check-auth')
-    if( response.data.status === 'success')
-      return {isAuthenticated : true , user : response?.data?.data}
-    else if(response.data.status === "error")
-      return {isAuthenticated : false}
-    return response.data
-  } catch (error) {
-    throw error.response ? error.response.data : error.message
-  }
-}
-
-export const logoutUser = async() => {
-  try {
-    const response = await axiosInstance.get('/auth/logout')
-    return response.data
-  } catch (error) {
-    throw error.response ? error.response.data : error.message
-  }
-}
-
-export const getAllUsers = async() => {
-  try {
-    const response = await axiosInstance.get('/auth/users')
-    return response.data
-  } catch (error) {
-    throw error.response ? error.response.data : error.message
-  }
-}
+export const updateProfile = async (formData) => {
+  const response = await api.put("/users/profile/me", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return response.data;
+};

@@ -1,10 +1,25 @@
-import mongoose from 'mongoose'
+import mongoose from "mongoose";
+
+const attachmentSchema = new mongoose.Schema(
+  {
+    url: { type: String, required: true },
+    publicId: { type: String, required: true },
+    fileName: { type: String, required: true },
+    mimeType: { type: String, required: true },
+    size: { type: Number, required: true },
+    resourceType: { type: String, required: true },
+    width: { type: Number, default: null },
+    height: { type: Number, default: null },
+    duration: { type: Number, default: null },
+  },
+  { _id: false },
+);
 
 const messageSchema = new mongoose.Schema(
   {
-    conversation: {
+    chat: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Conversation',
+      ref: "Chat",
       required: true,
     },
     sender: {
@@ -12,40 +27,50 @@ const messageSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    receiver: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    content: {
+    text: {
       type: String,
+      default: "",
+      maxlength: 4000,
     },
-    imageOrVideoUrl: {
-      type: String,
+    attachments: {
+      type: [attachmentSchema],
+      default: [],
     },
-    contentType: {
-      type: String,
-      enum: ['image', 'video', 'text'],
+    editedAt: {
+      type: Date,
+      default: null,
     },
-    reactions: [
+    deliveredTo: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+    readBy: [
       {
         user: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",
+          required: true,
         },
-        emoji:String,
-      }
+        readAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
     ],
-    messageStatus:{
-      type: String,
-      default:true
-    }
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
-    timestamps: true
-  }
-)
+    timestamps: true,
+  },
+);
 
-const Message = mongoose.model("Message", messageSchema)
+messageSchema.index({ chat: 1, createdAt: -1 });
+
+const Message = mongoose.model("Message", messageSchema);
 
 export default Message;
