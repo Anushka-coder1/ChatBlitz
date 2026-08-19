@@ -7,6 +7,11 @@ export default defineConfig({
     react() , 
     tailwindcss(),
   ],
+  build: {
+    // The Express server serves this directory in production.
+    outDir: "../backend/public",
+    emptyOutDir: true,
+  },
   server: {
     proxy: {
       "/api": {

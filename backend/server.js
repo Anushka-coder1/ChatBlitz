@@ -49,8 +49,8 @@ app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const frontendDistDir = path.join(__dirname, "../frontend/dist");
-app.use(express.static(frontendDistDir));
+const publicDir = path.join(__dirname, "public");
+app.use(express.static(publicDir));
 
 app.use(cookieParser());
 app.use(sanitizeInput);
@@ -79,7 +79,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api", notFound);
 
 app.get("*name", (_req, res) => {
-  res.sendFile(path.join(frontendDistDir, "index.html"));
+  res.sendFile(path.join(publicDir, "index.html"));
 });
 
 app.use(errorHandler);
