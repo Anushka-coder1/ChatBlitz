@@ -5,6 +5,8 @@ import http from "http";
 import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 
 import connectDB from "./config/db.js";
 import { configureUploadsDirectory } from "./config/cloudinary.js";
@@ -47,8 +49,8 @@ app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const publicDir = path.join(__dirname, "../public");
-app.use(express.static(publicDir));
+const frontendDistDir = path.join(__dirname, "../frontend/dist");
+app.use(express.static(frontendDistDir));
 
 app.use(cookieParser());
 app.use(sanitizeInput);
@@ -72,12 +74,15 @@ app.use("/api/users", userRoutes);
 app.use("/api/chats", chatRoutes);
 app.use("/api/notifications", notificationRoutes);
 
-app.use(notFound);
-app.use(errorHandler);
+// Keep unknown API endpoints as JSON errors while allowing React Router to
+// handle client-side paths such as /chat or /settings.
+app.use("/api", notFound);
 
 app.get("*name", (_req, res) => {
-  res.sendFile(path.join(publicDir, "index.html"));
-})
+  res.sendFile(path.join(frontendDistDir, "index.html"));
+});
+
+app.use(errorHandler);
 
 const port = Number(process.env.PORT || 5000);
 
