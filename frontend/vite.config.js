@@ -15,7 +15,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "https://chatblitz-backend.onrender.com",
+        target: "https://chatblitz-backend1.onrender.com",
         changeOrigin: true
       }
     }

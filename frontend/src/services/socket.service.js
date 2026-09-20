@@ -8,7 +8,7 @@ export const initializeSocket = (token) => {
   const apiBase =
     import.meta.env.VITE_API_URL ||
     import.meta.env.REACT_APP_API_URL ||
-    "https://chatblitz-backend.onrender.com";
+    "https://chatblitz-backend1.onrender.com";
 
   socket = io(apiBase.replace(/\/$/, ""), {
     withCredentials: true,
