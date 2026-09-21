@@ -9,7 +9,7 @@ import { sendOtpToPhoneNumber, verifyOtp as verifyPhoneOtp } from "../services/t
 
 const cookieOptions = {
   httpOnly: true,
-  sameSite: "lax",
+  sameSite: String(process.env.NODE_ENV).toLowerCase() === "production" ? "none" : "lax",
   secure: String(process.env.NODE_ENV).toLowerCase() === "production",
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };

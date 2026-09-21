@@ -10,4 +10,19 @@ const api = axios.create({
   withCredentials: true,
 });
 
+api.interceptors.request.use((config) => {
+  try {
+    const storedUser = JSON.parse(
+      localStorage.getItem("chatblitz-user-storage") || "null",
+    );
+    const token = storedUser?.state?.token;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  } catch {
+    // Ignore malformed persisted state and let the request use its cookie.
+  }
+  return config;
+});
+
 export default api;
